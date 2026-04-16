@@ -560,6 +560,7 @@ app.add_middleware(
 
 @app.post("/submit")
 async def submit_application(data: Info, db: AsyncSession = Depends(getDb)):
+    print(data.email)
     job_id = str(uuid.uuid4())
     job_dir = f"/tmp/{job_id}"
 
