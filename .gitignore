@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.python-version
+
+# Environment
+.env
+.env.*
+
+# C/C++ build outputs
+*.o
+*.out
+Application
+
+# Runtime and grader logs
+dbg.log
+dbg.*.log
+msgcount.log
+stats.log
+
+# Node/Vite (if frontend directory exists)
+node_modules/
+dist/
+frontend/node_modules/
+frontend/dist/
+
+# OS/editor
+.DS_Store
+.vscode/
