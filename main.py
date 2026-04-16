@@ -418,6 +418,7 @@ import subprocess
 import asyncio
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
@@ -630,3 +631,13 @@ def cancel_job(job_id: str):
     shutil.rmtree(job["job_dir"], ignore_errors=True)
 
     return {"msg": "Job cancelled"}
+
+@app.get("/health")
+async def health():
+    return {
+        "status":"running",
+        "msg" : "ok"
+    }
+@app.get('/')
+async def root():
+    return RedirectResponse('/health')
