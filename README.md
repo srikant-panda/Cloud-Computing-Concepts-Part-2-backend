@@ -1,192 +1,180 @@
-# Cloud-Computing-Concepts-Part-2
-Coursera course : https://www.coursera.org/specializations/cloud-computing
-# What is the project?
-*	Building a **Fault-Tolerant Key-Value Store**.
+# Cloud Computing Concepts Part 2
 
-*	The main functionalities of the Key-Value Store :
-	*	**CRUD operations :** A key-value store supporting CRUD operations (Create, Read, Update, Delete).
-	*	**Load-balancing :** via a consistent hashing ring to hash both servers and keys.
-	*	**Fault-tolerance up to two failures :** by replicating each key three times to three successive nodes in the ring, 	    starting from the first node at or to the clockwise of the hashed key.
-	*	**Quorum consistency level** for both reads and writes (at least two replicas).
-	*	**Stabilization :** after failure (recreate three replicas after failure).
-      
-# Principle of **Fault-Tolerant Key-Value Store** : 
-![image](https://github.com/kevin85421/Cloud-Computing-Concepts-Part-2/blob/master/kvstore.png)
+Coursera specialization:
+https://www.coursera.org/specializations/cloud-computing
 
-# How do I run the Grader on my computer ?
-*	There is a grader script KVStoreGrader.sh. The tests include:
-      * **Basic CRUD** tests that test if three replicas respond
-      * **Single failure** followed immediately by operations which should succeed (as quorum can still be
-reached with 1 failure)
-      * **Multiple failures** followed immediately by operations which should fail as quorum cannot be
-reached
-      * Failures followed by a time for the system to re-stabilize, followed by operations that should
-succeed because the key has been re-replicated again at three nodes.
-```
-	$ chmod +x KVStoreGrader.sh
-	$ ./KVStoreGrader.sh
-```
-# Result
-*	Points achieved: 90 out of 90 [100%]
+This repository currently contains two related parts:
 
-# Cloud Computing Concepts - Part 2
+1. MP2 C++ distributed key-value store implementation and grader flow.
+2. A FastAPI service that runs the grader and submits results to Coursera asynchronously.
 
-This repository contains:
+## Key-Value Store (MP2)
 
-1. The original MP2 distributed key-value store code and grader scripts.
-2. A FastAPI backend that runs asynchronous Coursera submission jobs.
-3. A React frontend (Vite + Tailwind + Framer Motion) that submits and tracks job progress.
+The MP2 implementation provides:
+
+1. CRUD operations (create, read, update, delete).
+2. Consistent hashing based node/key placement.
+3. Replication factor 3.
+4. Quorum-style operations (majority behavior for reads/writes).
+5. Stabilization behavior after failures.
+
+Architecture image:
+
+![kvstore](kvstore.png)
 
 ## Project Structure
 
-1. Backend API: [main.py](main.py)
-2. Submission logic: [submit.py](submit.py)
-3. Grading runner script: [run.sh](run.sh)
-4. Frontend app: [frontend](frontend)
-5. Backend container config: [Dockerfile](Dockerfile)
+Core files:
 
-## Backend Overview
+1. `MP2Node.cpp` / `MP2Node.h`: MP2 key-value store protocol logic.
+2. `MP1Node.cpp` / `MP1Node.h`: membership protocol logic.
+3. `Makefile`: C++ build for `Application`.
+4. `KVStoreGrader.sh`: local MP2 grader script.
+5. `testcases/`: CRUD and failure simulation configs.
 
-The backend uses an async job workflow.
+Submission API files:
 
-1. `POST /submit`
-2. `GET /status/{job_id}`
-3. `POST /cancel/{job_id}`
+1. `main.py`: FastAPI app and async job orchestration.
+2. `run.sh`: prepares Coursera grader package, builds, runs tests, writes `dbg.*.log`.
+3. `submit.py`: sends logs to Coursera programming assignment endpoint.
 
-Job status progression:
-
-1. `running`
-2. `grading`
-3. `submitting`
-4. terminal states: `done`, `failed`, or `killed`
-
-On submit, the backend:
-
-1. Creates a job ID and temporary folder under `/tmp`.
-2. Runs [run.sh](run.sh) in a subprocess.
-3. Submits generated logs to Coursera through [submit.py](submit.py).
-4. Exposes status through `/status/{job_id}`.
-
-## API Contract
-
-### POST /submit
-
-Request body:
-
-```json
-{
-	"email": "you@example.com",
-	"token": "your-token"
-}
-```
-
-Response:
-
-```json
-{
-	"job_id": "...",
-	"status": "running",
-	"msg": "Submission started"
-}
-```
-
-### GET /status/{job_id}
-
-Response:
-
-```json
-{
-	"status": "running|grading|submitting|done|failed|killed",
-	"result": {}
-}
-```
-
-### POST /cancel/{job_id}
-
-Response:
-
-```json
-{
-	"msg": "Job cancelled"
-}
-```
-
-## Backend Local Setup
-
-### Prerequisites
-
-1. Python 3.12+
-2. C++ toolchain (`g++`, `make`)
-3. `wget`, `unzip`
-4. A valid `DATABASE_URL` environment variable
-
-### Run
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install fastapi "uvicorn[standard]" sqlalchemy python-dotenv asyncpg httpx email-validator
-export DATABASE_URL="postgresql+asyncpg://USER:PASSWORD@HOST:5432/DBNAME"
-uvicorn main:app --reload
-```
-
-API base URL (default): `http://127.0.0.1:8000`
-
-## Frontend Setup
-
-The frontend is in [frontend](frontend).
-
-```bash
-cd frontend
-npm install
-```
-
-Create [frontend/.env](frontend/.env) with:
-
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8000
-```
-
-Run frontend:
-
-```bash
-npm run dev
-```
-
-Build frontend:
-
-```bash
-npm run build
-```
-
-## Docker (Backend)
+## Run MP2 Locally (C++)
 
 Build:
 
 ```bash
-docker build -t cloud-backend .
+make clean
+make
+```
+
+Run a specific testcase:
+
+```bash
+./Application ./testcases/create.conf
+./Application ./testcases/delete.conf
+./Application ./testcases/read.conf
+./Application ./testcases/update.conf
+```
+
+Run full local grader:
+
+```bash
+chmod +x KVStoreGrader.sh
+./KVStoreGrader.sh
+```
+
+## FastAPI Submission Service
+
+`main.py` exposes APIs to run grading and submit to Coursera.
+
+Current endpoints:
+
+1. `POST /submit` (rate limited to `3/minutes` per IP)
+2. `GET /status/{job_id}`
+3. `POST /cancel/{job_id}`
+4. `GET /health`
+
+Job states:
+
+1. `running`
+2. `grading`
+3. `submitting`
+4. terminal states: `done`, `failed`, `killed`
+
+### Request/Response Examples
+
+Submit:
+
+```http
+POST /submit
+Content-Type: application/json
+
+{
+  "email": "you@example.com",
+  "token": "coursera-secret-token"
+}
+```
+
+```json
+{
+  "job_id": "2f3f3d4f-...",
+  "status": "running",
+  "msg": "Submission started"
+}
+```
+
+Status:
+
+```http
+GET /status/{job_id}
+```
+
+```json
+{
+  "status": "grading",
+  "result": null
+}
+```
+
+Cancel:
+
+```http
+POST /cancel/{job_id}
+```
+
+```json
+{
+  "msg": "Job cancelled"
+}
+```
+
+Health:
+
+```http
+GET /health
+```
+
+```json
+{
+  "status": "running",
+  "msg": "ok"
+}
+```
+
+## Run FastAPI Service Locally
+
+Prerequisites:
+
+1. Python 3.12+
+2. `g++`, `make`
+3. `wget`, `unzip`
+4. PostgreSQL connection string in `DATABASE_URL`
+
+Setup:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install slowapi
 ```
 
 Run:
 
 ```bash
-docker run --rm -p 8000:8000 \
-	-e DATABASE_URL="postgresql+asyncpg://USER:PASSWORD@HOST:5432/DBNAME" \
-	cloud-backend
+export DATABASE_URL="postgresql+asyncpg://USER:PASSWORD@HOST:5432/DBNAME"
+uvicorn main:app --reload
 ```
 
-If you see Docker exit code `125`, check for:
+Service URL (default):
 
-1. Port conflict on `8000`
-2. Invalid Docker command formatting
-3. Existing container using the same published port
+```text
+http://127.0.0.1:8000
+```
 
-## MP2 Grader Notes
+## Notes
 
-The original MP2 files and grader scripts are preserved in this repo.
+1. The service creates job folders under `/tmp/<job_id>` and removes them after completion/cancel.
+2. `run.sh` downloads the official Coursera MP2 grader package at runtime.
+3. `submit.py` expects four generated logs: `dbg.0.log` to `dbg.3.log`.
 
-1. [KVStoreGrader.sh](KVStoreGrader.sh)
-2. MP2 source files (`MP2Node.*`, `Application.*`, etc.)
-
-These are used by [run.sh](run.sh) during submission workflows.
-	
