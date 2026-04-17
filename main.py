@@ -379,11 +379,12 @@ class Info(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Application started")
-
-    async with engine.begin() as conn:
-        await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{DEFAULT_SCHEMA_NAME}"'))
-        await conn.run_sync(Base.metadata.create_all)
-
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{DEFAULT_SCHEMA_NAME}"'))
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        logger.info("Database connection failde. Your data is not storing to database.")
     yield
 
     await engine.dispose()
