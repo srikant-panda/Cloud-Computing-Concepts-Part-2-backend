@@ -239,8 +239,7 @@ import shutil
 import subprocess
 import asyncio
 import logging
-
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends,Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
@@ -252,6 +251,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from dotenv import load_dotenv
 from os import getenv
+from slowapi import Limiter
+from slowapi.util import get_remote_address   # To get the ip address of user.
+from slowapi.middleware import SlowAPIASGIMiddleware   # limiter middleware
+from slowapi.errors import RateLimitExceeded    # Ratelimitexpection
+
 
 import submit
 
@@ -395,12 +399,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+limiter=Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIASGIMiddleware)
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request : Request,exec : RateLimitExceeded):
+    raise HTTPException(
+           status_code=429,
+            detail="Too many requests. limit execeed. Try after 10 minutes"
+    )
 
 # ================= ROUTES =================
-
 @app.post("/submit")
-async def submit_application(data: Info, db: AsyncSession = Depends(getDb)):
+@limiter.limit("3/minutes")
+async def submit_application(request:Request,data: Info, db: AsyncSession = Depends(getDb)):
     logger.info(f"[REQUEST] Submit received | email={data.email}")
 
     job_id = str(uuid.uuid4())
