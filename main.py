@@ -289,8 +289,9 @@ async def health():
 
         # ❌ all retries failed
         return {
-            "status": "down",
-            "msg": "service unreachable",
+            "status": "ok",
+            "msg": "running",
+            "gossip_protocol_status": "down",
             "gossip_protocol": last_status,
         }
 # print(asyncio.run(health()))
