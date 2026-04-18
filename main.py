@@ -293,4 +293,4 @@ async def health():
             "msg": "service unreachable",
             "gossip_protocol": last_status,
         }
-print(asyncio.run(health()))
+# print(asyncio.run(health()))
