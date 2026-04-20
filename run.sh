@@ -18,7 +18,7 @@ rm -f dbg.*.log
 # ================= PREPARE GRADER =================
 mkdir grade-dir
 cd grade-dir || exit 1
-
+echo "Downloading assignment files...through wget"
 wget https://spark-public.s3.amazonaws.com/cloudcomputing2/assignments/mp2_assignment.zip || { echo 'ERROR wget'; exit 1; }
 
 unzip mp2_assignment.zip || { echo 'ERROR unzip'; exit 1; }

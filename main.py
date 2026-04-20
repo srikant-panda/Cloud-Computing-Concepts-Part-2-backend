@@ -1,4 +1,4 @@
-import os
+import os,time
 import uuid
 import shutil
 import subprocess
@@ -131,6 +131,7 @@ async def handle_job(job_id: str):
 
     finally:
         shutil.rmtree(job["job_dir"], ignore_errors=True)
+        del jobs[job_id]
         logger.info(f"[JOB {job_id}] CLEANED UP")
 
 
@@ -140,10 +141,11 @@ class Info(BaseModel):
     email: EmailStr
     token: str
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Application started")
+    app.state.client = httpx.AsyncClient()
+    logger.info("Client created.")
     try:
         async with engine.begin() as conn:
             await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{DEFAULT_SCHEMA_NAME}"'))
@@ -151,7 +153,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.info("Database connection failde. Your data is not storing to database.")
     yield
-
+    try:
+        await app.state.client.close()
+    except Exception as e:
+        logger.error("Client dont closed properly.",str(e))
     await engine.dispose()
     logger.info("🛑 Application stopped")
 
@@ -199,6 +204,7 @@ async def submit_application(request:Request,data: Info, db: AsyncSession = Depe
 
     await db.commit()
 
+    time.sleep(10)
     process = subprocess.Popen(
         ['sh', 'run.sh', job_dir, os.getcwd()],
         stdout=subprocess.PIPE,
@@ -213,6 +219,8 @@ async def submit_application(request:Request,data: Info, db: AsyncSession = Depe
         "token": data.token
     }
 
+    time.sleep(10)
+    print("Job start")
     asyncio.create_task(handle_job(job_id))
 
     return {
@@ -250,12 +258,13 @@ def cancel_job(job_id: str):
         logger.warning(f"[JOB {job_id}] CANCELLED by user")
 
     shutil.rmtree(job["job_dir"], ignore_errors=True)
+    del jobs[job_id]
 
     return {"msg": "Job cancelled"}
 
 
 @app.get("/health")
-async def health():
+async def health(request:Request):
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "*/*",
@@ -264,34 +273,37 @@ async def health():
     RETRIES = 3
     TIMEOUT = 5.0
 
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        last_status = None
+    # async with httpx.AsyncClient(timeout=TIMEOUT) as client:
 
-        for attempt in range(RETRIES):
-            try:
-                response = await client.get(REDIRECT_URI, headers=headers)
-                last_status = response.status_code
+    last_status = None
+    client = request.app.state.client
+    for attempt in range(RETRIES):
+        try:
+            response = await client.get(REDIRECT_URI, headers=headers,timeout=httpx.Timeout(TIMEOUT))
+            last_status = response.status_code
 
-                # ✅ success condition
-                if response.status_code < 500:
-                    return {
-                        "status": "running",
-                        "msg": "ok",
-                        "gossip_protocol": response.status_code,
-                    }
+            # ✅ success condition
+            if response.status_code < 500:
+                return {
+                    "status": "running",
+                    "msg": "ok",
+                    "gossip_protocol": response.status_code,
+                }
 
-            except httpx.RequestError as e:
-                # network error (DNS, connection, timeout)
-                last_status = str(e)
+        except httpx.RequestError as e:
+            # network error (DNS, connection, timeout)
+            last_status = str(e)
 
-            # ❗ exponential backoff
-            await asyncio.sleep(2 ** attempt)
+        # ❗ exponential backoff
+        await asyncio.sleep(2 ** attempt)
 
-        # ❌ all retries failed
-        return {
-            "status": "ok",
-            "msg": "running",
-            "gossip_protocol_status": "down",
-            "gossip_protocol": last_status,
-        }
+    # ❌ all retries failed
+    return {
+        "status": "ok",
+        "msg": "running",
+        "gossip_protocol_status": "down",
+        "gossip_protocol": last_status,
+    }
 # print(asyncio.run(health()))
+
+# asyncio.run(submit_application(**{"email":"s@gmail.com","token":"cvsdfnv"}))
