@@ -259,11 +259,19 @@ def cancel_job(job_id: str):
 
     shutil.rmtree(job["job_dir"], ignore_errors=True)
     del jobs[job_id]
-
+    logger.info(f"[JOB {job_id}] CLEANED UP")
     return {"msg": "Job cancelled"}
 
-
-@app.get("/health")
+@app.get("/jobs")
+def list_jobs():
+    return {
+        job_id: {
+            "status": job["status"],
+            "email": job["email"]
+        }
+        for job_id, job in jobs.items()
+    }
+@app.get("/health-gossip")
 async def health(request:Request):
     headers = {
         "User-Agent": "Mozilla/5.0",
@@ -272,8 +280,6 @@ async def health(request:Request):
     }
     RETRIES = 3
     TIMEOUT = 5.0
-
-    # async with httpx.AsyncClient(timeout=TIMEOUT) as client:
 
     last_status = None
     client = request.app.state.client
@@ -299,8 +305,8 @@ async def health(request:Request):
 
     # ❌ all retries failed
     return {
-        "status": "ok",
-        "msg": "running",
+        "status": "down",
+        "msg": "down",
         "gossip_protocol_status": "down",
         "gossip_protocol": last_status,
     }
